@@ -2,38 +2,54 @@
 
 import {
   Alert,
+  Box,
+  Button,
+  CircularProgress,
   Container,
   FormControl,
   FormHelperText,
   FormLabel,
   Input,
-  Radio,
-  RadioGroup, Skeleton,
-  Stack
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemContent,
+  ListItemDecorator,
+  Stack,
+  ToggleButtonGroup
 } from "@mui/joy"
-import {parseAsInteger, useQueryState} from "nuqs"
-import {InfoOutlined} from "@mui/icons-material"
-import {useVideoInfo} from "@/hooks/useVideoInfo"
+import {parseAsStringEnum, useQueryState} from "nuqs"
+import {Download, InfoOutlined} from "@mui/icons-material"
+import useVideoInfo from "@/hooks/useVideoInfo"
+import useDownloadVideo from "@/hooks/useDownloadVideo"
+
+enum Medium {
+  Video = "video",
+  Audio = "audio",
+  VideoAudio = "video-audio",
+}
 
 export default function Home() {
   const [link, setLink] = useQueryState("link")
-  const [itag, setItag] = useQueryState("itag", parseAsInteger)
+  const [medium, setMedium] = useQueryState<Medium>("medium", parseAsStringEnum(Object.values(Medium)).withDefault(Medium.VideoAudio))
 
-  const {isValidLink, status, videoInfo} = useVideoInfo(link)
-
-  // const download = async () => {
-  //   if (state.status !== "infoReady" || !link) return
-  //
-  //   const format = state.info.formats.find((format) => format.itag === state.itag)
-  //   if (!format) return
-  //
-  //   const requestURL = `/api/download?link=${link}&itag=${state.itag}`
-  //   const response = await axios.get(requestURL, {responseType: "blob"})
-  //   const blob = new Blob([response.data], {type: "video/mp4"})
-  //   dispatch({type: "downloadSuccess", blob})
-  // }
+  const {isValidLink, status: infoStatus, videoInfo} = useVideoInfo(link)
+  const {startDownload, closeDownload, downloadURL, status: downloadStatus, selectedItag} = useDownloadVideo()
 
   const showError = !!link && !isValidLink
+
+  const filteredFormats = videoInfo?.formats.filter(format => {
+    if (format.container !== "mp4") return false
+
+    switch (medium) {
+      case Medium.Video:
+        return format.hasVideo && !format.hasAudio
+      case Medium.Audio:
+        return !format.hasVideo && format.hasAudio
+      case Medium.VideoAudio:
+        return format.hasVideo && format.hasAudio
+    }
+  })
 
   return (
     <Container maxWidth="md" sx={{my: 5}} component={Stack} spacing={3}>
@@ -47,62 +63,64 @@ export default function Home() {
         </FormHelperText>)}
       </FormControl>
 
-      {status === "error" && (
+      {infoStatus === "error" && (
         <Alert color="danger">Error getting video info</Alert>
       )}
 
-      {(status === "success" || status === "loading") && (
+
+      {infoStatus === "loading" && <Stack spacing={1}>
+        <Box sx={{textAlign: "center"}}><CircularProgress /></Box>
+      </Stack>}
+
+      {infoStatus === "success" && (
         <div>
-          <FormControl>
-            <FormLabel>Format</FormLabel>
-            <RadioGroup
-              value={itag}
-              onChange={(event) => setItag(+event.target.value)}
-            >
-              {(status === "loading") && (
-                <Stack maxWidth={200}>
-                  {Array.from({length: 8}).map((_, index) => (
-                    <Skeleton key={index} variant="text" />
-                  ))}
-                </Stack>
-              )}
+          <ToggleButtonGroup
+            value={medium}
+            onChange={(e, newValue) => setMedium(newValue)}
+          >
+            <Button value={Medium.VideoAudio}>Video & Audio</Button>
+            <Button value={Medium.Audio}>Audio Only</Button>
+            <Button value={Medium.Video}>Video Only</Button>
+          </ToggleButtonGroup>
 
-              {videoInfo?.formats.filter(format => format.container === "mp4").map((format) => {
-                let label = format.hasVideo && format.hasAudio ? "Video + Audio" : format.hasVideo ? "Video" : "Audio"
-                if (format.qualityLabel) label += ` - ${format.qualityLabel}`
-                label += ` (${(+format.contentLength / 1024 / 1024).toFixed(1)} MB)`
+          <List>
+            {link && filteredFormats ? filteredFormats.map((format, index) => {
+              let label = format.hasVideo && format.hasAudio ? "Video + Audio" : format.hasVideo ? "Video" : "Audio"
+              if (format.qualityLabel) label += ` - ${format.qualityLabel}`
+              label += ` (${(+format.contentLength / 1024 / 1024).toFixed(1)} MB)`
 
-                return (
-                  <Radio
-                    key={format.itag}
-                    value={format.itag}
-                    label={label}
-                  />
-                )
-              })}
-            </RadioGroup>
-          </FormControl>
-
-          {/*<button onClick={download} disabled={state.status === "downloadLoading"}>*/}
-          {/*  Download*/}
-          {/*</button>*/}
+              return (
+                <ListItem key={[format.itag, format.contentLength].join("-")}>
+                  <ListItemButton onClick={() => startDownload(link, format.itag)}>
+                    <ListItemDecorator>
+                      {downloadStatus === "loading" && selectedItag === format.itag ? (
+                        <CircularProgress size="sm" />
+                      ) : (
+                        <Download />
+                      )}
+                    </ListItemDecorator>
+                    <ListItemContent>{label}</ListItemContent>
+                  </ListItemButton>
+                </ListItem>
+              )
+            }) : null}
+          </List>
         </div>
       )}
 
+      {downloadStatus === "loading" && (
+        <p>Downloading...</p>
+      )}
 
-      {/*{state.status === "downloadLoading" && (*/}
-      {/*  <p>Loading...</p>*/}
-      {/*)}*/}
+      {downloadStatus === "error" && (
+        <p>Error downloading</p>
+      )}
 
-      {/*{state.status === "downloadError" && (*/}
-      {/*  <p>Error downloading</p>*/}
-      {/*)}*/}
-
-      {/*{state.status === "downloadReady" && (*/}
-      {/*  <a href={URL.createObjectURL(state.blob)} download="foo-bar.mp4">*/}
-      {/*    Download*/}
-      {/*  </a>*/}
-      {/*)}*/}
+      {downloadStatus === "success" && !!downloadURL && (
+        <a href={downloadURL} download="foo-bar.mp4">
+          Save
+        </a>
+      )}
     </Container>
   )
 }

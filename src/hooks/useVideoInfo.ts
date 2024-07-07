@@ -10,7 +10,7 @@ type UseVideoInfoReturn = {
   videoInfo: videoInfo | undefined
 }
 
-export function useVideoInfo(link: string | null): UseVideoInfoReturn {
+export default function useVideoInfo(link: string | null): UseVideoInfoReturn {
   const isValidLink = !!link && validateURL(link)
 
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "success">("idle")
