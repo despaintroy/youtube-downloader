@@ -15,11 +15,15 @@ import {
   ListItemButton,
   ListItemContent,
   ListItemDecorator,
+  Modal,
+  ModalClose,
+  Sheet,
   Stack,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Typography
 } from "@mui/joy"
 import {parseAsStringEnum, useQueryState} from "nuqs"
-import {Download, InfoOutlined} from "@mui/icons-material"
+import {Download, InfoOutlined, Save} from "@mui/icons-material"
 import useVideoInfo from "@/hooks/useVideoInfo"
 import useDownloadVideo from "@/hooks/useDownloadVideo"
 
@@ -108,19 +112,47 @@ export default function Home() {
         </div>
       )}
 
-      {downloadStatus === "loading" && (
-        <p>Downloading...</p>
-      )}
 
-      {downloadStatus === "error" && (
-        <p>Error downloading</p>
-      )}
-
-      {downloadStatus === "success" && !!downloadURL && (
-        <a href={downloadURL} download="foo-bar.mp4">
-          Save
-        </a>
-      )}
+      <Modal
+        open={downloadStatus === "error" || downloadStatus === "success"}
+        onClose={closeDownload}
+        sx={{display: "flex", justifyContent: "center", alignItems: "center"}}>
+        <Sheet
+          variant="outlined"
+          sx={{
+            maxWidth: 300,
+            width: "100%",
+            borderRadius: "md",
+            p: 3,
+            boxShadow: "lg"
+          }}>
+          <ModalClose sx={{m: 1}} />
+          <Typography
+            textColor="inherit"
+            fontWeight="lg"
+            mb={1}
+          >
+            Save Video
+          </Typography>
+          {(() => {
+            switch (downloadStatus) {
+              case "error":
+                return <Typography textColor="text.tertiary">Error while downloading video</Typography>
+              case "success":
+                return <Button
+                  component="a"
+                  href={downloadURL ?? undefined}
+                  download="foo-bar.mp4"
+                  startDecorator={<Save />}
+                >
+                  Save File
+                </Button>
+              default:
+                return null
+            }
+          })()}
+        </Sheet>
+      </Modal>
     </Container>
   )
 }
